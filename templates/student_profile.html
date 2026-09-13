@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ student.name }} - Profile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="page-header">
+            <h1>{{ student.name }}</h1>
+            <p>Attendance history for this student.</p>
+        </header>
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Profile Summary</h2>
+            </div>
+            <div class="student-card">
+                <h3 id="studentName">{{ student.name }}</h3>
+                <p>ID: {{ student.id }}</p>
+                <p>Department: <span id="studentDepartment">{{ student.department or 'Department not set' }}</span></p>
+                <p>Total attendance records: <span id="studentAttendanceCount">{{ attendance|length }}</span></p>
+                <div class="card-actions">
+                    <a class="button primary compact" href="{{ url_for('dashboard') }}">Back</a>
+                    <form method="post" action="{{ url_for('delete_student', student_id=student.id) }}" onsubmit="return confirm('Delete {{ student.name }} and all attendance records?');">
+                        <button class="button danger compact" type="submit">Delete Profile</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Attendance Records</h2>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentAttendanceRows">
+                        {% for item in attendance %}
+                        <tr>
+                            <td>{{ item.date }}</td>
+                            <td>{{ item.time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+    <script>
+        function renderStudentAttendance(attendance) {
+            const rows = document.getElementById('studentAttendanceRows');
+            if (!rows) return;
+
+            rows.innerHTML = '';
+            attendance.forEach(item => {
+                const row = document.createElement('tr');
+                [item.date, item.time].forEach(value => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                rows.appendChild(row);
+            });
+        }
+
+        async function refreshStudentProfile() {
+            const response = await fetch('{{ url_for("student_profile_data", student_id=student.id) }}', { cache: 'no-store' });
+            if (!response.ok) return;
+            const data = await response.json();
+
+            document.getElementById('studentName').textContent = data.student.name;
+            document.getElementById('studentDepartment').textContent = data.student.department || 'Department not set';
+            document.getElementById('studentAttendanceCount').textContent = data.attendance_count;
+            renderStudentAttendance(data.attendance || []);
+        }
+
+        setInterval(refreshStudentProfile, 3000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Student</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <section class="card auth-card">
+            <h1>Register New Student</h1>
+            <p>Capture a new face and store the student in the attendance system.</p>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            <form method="post">
+                <div class="form-group">
+                    <label for="name">Student Name</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="department">Department Name</label>
+                    <input type="text" id="department" name="department" required>
+                </div>
+                <button class="button primary submit" type="submit">Capture Face and Register</button>
+            </form>
+            <div class="form-footer">
+                <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

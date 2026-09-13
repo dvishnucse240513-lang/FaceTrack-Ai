@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="page-header">
+            <h1>Face Recognition Attendance System</h1>
+            <p>Monitor attendance, register students, and export records effortlessly.</p>
+        </header>
+
+        <div class="grid grid-2">
+            <section class="card stat-card">
+                <div>
+                    <div class="label">Total Students</div>
+                    <div class="value" id="totalStudents">{{ total }}</div>
+                </div>
+                <div class="label">Live face recognition</div>
+            </section>
+
+            <section class="card stat-card">
+                <div>
+                    <div class="label">Today's Attendance</div>
+                    <div class="value" id="todayCount">{{ today_count }}</div>
+                </div>
+                <div class="label">Marked today</div>
+            </section>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="card status-banner">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        {% if last_capture %}
+        <section class="card status-banner">
+            <p>Last registered student: <strong>{{ last_capture }}</strong></p>
+        </section>
+        {% endif %}
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Student Profiles</h2>
+                <span class="section-pill">{{ total }} enrolled</span>
+            </div>
+            <div class="student-cards" id="studentCards">
+                {% if student_summary %}
+                    {% for student in student_summary %}
+                    <article class="student-card">
+                        <div>
+                            <h3>{{ student.name }}</h3>
+                            <p>{{ student.department or 'Department not set' }}</p>
+                            <p>{{ student.attendance_count }} attendance record{{ 's' if student.attendance_count != 1 else '' }}</p>
+                        </div>
+                        <div class="card-actions">
+                            <a class="button secondary compact" href="{{ url_for('student_profile', student_id=student.id) }}">View</a>
+                            <form method="post" action="{{ url_for('delete_student', student_id=student.id) }}" onsubmit="return confirm('Delete {{ student.name }} and all attendance records?');">
+                                <button class="button danger compact" type="submit">Delete</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <h3>No students registered yet</h3>
+                        <p>Add the first student profile to begin marking attendance.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Attendance History</h2>
+            </div>
+            <div class="search-bar">
+                <input id="searchInput" type="text" placeholder="Search attendance by name, date, or time">
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Department</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceRows">
+                        {% for att in all %}
+                        <tr>
+                            <td>{{ att.name }}</td>
+                            <td>{{ att.department or '-' }}</td>
+                            <td>{{ att.date }}</td>
+                            <td>{{ att.time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Actions</h2>
+            </div>
+            <div class="button-group">
+                <a class="button primary" href="{{ url_for('register') }}">Register New Student</a>
+                <a class="button secondary" href="{{ url_for('export_xlsx') }}">Export Excel</a>
+                <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-title">
+                <h2>Live Camera Feed</h2>
+                <div class="button-group feed-actions">
+                    <button class="button primary compact" type="button" id="startFeed">Start</button>
+                    <button class="button secondary compact" type="button" id="stopFeed" disabled>Stop</button>
+                </div>
+            </div>
+            <div class="live-feed">
+                <img id="cameraFeed" data-src="{{ url_for('video_feed') }}" alt="Live Camera Feed">
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                const query = searchInput.value.toLowerCase().trim();
+                document.querySelectorAll('table tbody tr').forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(query) ? '' : 'none';
+                });
+            });
+        }
+
+        const cameraFeed = document.getElementById('cameraFeed');
+        const startFeed = document.getElementById('startFeed');
+        const stopFeed = document.getElementById('stopFeed');
+        let dashboardRefreshTimer = null;
+
+        function setText(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+
+        function renderStudentCards(students) {
+            const container = document.getElementById('studentCards');
+            if (!container) return;
+
+            if (!students.length) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No students registered yet</h3>
+                        <p>Add the first student profile to begin marking attendance.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            students.forEach(student => {
+                const card = document.createElement('article');
+                card.className = 'student-card';
+
+                const info = document.createElement('div');
+                const name = document.createElement('h3');
+                name.textContent = student.name;
+                const department = document.createElement('p');
+                department.textContent = student.department || 'Department not set';
+                const count = document.createElement('p');
+                const recordLabel = student.attendance_count === 1 ? 'record' : 'records';
+                count.textContent = `${student.attendance_count} attendance ${recordLabel}`;
+                info.append(name, department, count);
+
+                const actions = document.createElement('div');
+                actions.className = 'card-actions';
+                const viewLink = document.createElement('a');
+                viewLink.className = 'button secondary compact';
+                viewLink.href = `/student/${student.id}`;
+                viewLink.textContent = 'View';
+
+                const deleteForm = document.createElement('form');
+                deleteForm.method = 'post';
+                deleteForm.action = `/student/${student.id}/delete`;
+                deleteForm.addEventListener('submit', event => {
+                    if (!confirm(`Delete ${student.name} and all attendance records?`)) {
+                        event.preventDefault();
+                    }
+                });
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'button danger compact';
+                deleteButton.type = 'submit';
+                deleteButton.textContent = 'Delete';
+                deleteForm.appendChild(deleteButton);
+                actions.append(viewLink, deleteForm);
+
+                card.append(info, actions);
+                container.appendChild(card);
+            });
+        }
+
+        function renderAttendanceRows(attendance) {
+            const rows = document.getElementById('attendanceRows');
+            if (!rows) return;
+
+            rows.innerHTML = '';
+            attendance.forEach(item => {
+                const row = document.createElement('tr');
+                [item.name, item.department || '-', item.date, item.time].forEach(value => {
+                    const cell = document.createElement('td');
+                    cell.textContent = value;
+                    row.appendChild(cell);
+                });
+                rows.appendChild(row);
+            });
+        }
+
+        async function refreshDashboardData() {
+            const response = await fetch('{{ url_for("dashboard_data") }}', { cache: 'no-store' });
+            if (!response.ok) return;
+            const data = await response.json();
+            setText('totalStudents', data.total);
+            setText('todayCount', data.today_count);
+            renderStudentCards(data.student_summary || []);
+            renderAttendanceRows(data.attendance || []);
+        }
+
+        function startDashboardRefresh() {
+            refreshDashboardData();
+            if (!dashboardRefreshTimer) {
+                dashboardRefreshTimer = setInterval(refreshDashboardData, 1500);
+            }
+        }
+
+        function stopDashboardRefresh() {
+            if (dashboardRefreshTimer) {
+                clearInterval(dashboardRefreshTimer);
+                dashboardRefreshTimer = null;
+            }
+            refreshDashboardData();
+        }
+
+        if (cameraFeed && startFeed && stopFeed) {
+            startFeed.addEventListener('click', () => {
+                cameraFeed.src = cameraFeed.dataset.src;
+                startFeed.disabled = true;
+                stopFeed.disabled = false;
+                startDashboardRefresh();
+            });
+
+            stopFeed.addEventListener('click', () => {
+                cameraFeed.removeAttribute('src');
+                startFeed.disabled = false;
+                stopFeed.disabled = true;
+                stopDashboardRefresh();
+            });
+        }
+    </script>
+</body>
+</html>
