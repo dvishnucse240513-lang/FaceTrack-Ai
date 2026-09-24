@@ -575,9 +575,19 @@
 
         async function refreshDashboardData() {
 
+            const selectedDate =
+                document.getElementById('attendanceDate')?.value || '';
+
+            const dashboardUrl =
+                new URL('{{ url_for("dashboard_data") }}', window.location.origin);
+
+            if (selectedDate) {
+                dashboardUrl.searchParams.set('date', selectedDate);
+            }
+
             const response =
                 await fetch(
-                    '{{ url_for("dashboard_data") }}',
+                    dashboardUrl,
                     {
                         cache: 'no-store'
                     }
