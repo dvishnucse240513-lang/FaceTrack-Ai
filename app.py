@@ -115,9 +115,18 @@ def dashboard():
     total_students = db.get_total_students()
     today_attendance = db.get_attendance_today()
     today_count = db.get_attendance_count_today()
-    all_attendance = db.get_all_attendance(limit=200)
+
+    # Filter attendance by the selected date.
+    # If no date is selected, show the latest 200 records.
+    selected_date = request.args.get('date', '').strip()
+    if selected_date:
+        all_attendance = db.get_attendance_by_date(selected_date)
+    else:
+        all_attendance = db.get_all_attendance(limit=200)
+
     student_summary = db.get_student_summaries()
     last_capture = session.get('last_capture')
+
     return render_template(
         'index.html',
         total=total_students,
@@ -125,18 +134,26 @@ def dashboard():
         today_count=today_count,
         student_summary=student_summary,
         last_capture=last_capture,
-        all=all_attendance
+        all=all_attendance,
+        selected_date=selected_date
     )
 
 @app.route('/dashboard_data')
 @login_required
 def dashboard_data():
     """Return fresh dashboard data without reloading the whole page."""
+    selected_date = request.args.get('date', '').strip()
+
+    if selected_date:
+        attendance = db.get_attendance_by_date(selected_date)
+    else:
+        attendance = db.get_all_attendance(limit=200)
+
     return jsonify({
         'total': db.get_total_students(),
         'today_count': db.get_attendance_count_today(),
         'student_summary': db.get_student_summaries(),
-        'attendance': db.get_all_attendance(limit=200)
+        'attendance': attendance
     })
 
 @app.route('/register', methods=['GET', 'POST'])

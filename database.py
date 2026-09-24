@@ -134,11 +134,26 @@ class Database:
         """Get today's attendance records."""
         today = datetime.date.today().isoformat()
         with self.lock:
-            cursor = self.conn.execute('''SELECT s.name, s.department, a.date, a.time, a.marked_at FROM attendance a
-                                          JOIN students s ON a.student_id = s.id
-                                          WHERE a.date = ? ORDER BY a.marked_at''', (today,))
+            cursor = self.conn.execute('''
+                SELECT s.name, s.department, a.date, a.time, a.marked_at
+                FROM attendance a
+                JOIN students s ON a.student_id = s.id
+                WHERE a.date = ?
+                ORDER BY a.marked_at
+            ''', (today,))
             return self._format_attendance_rows(cursor.fetchall())
 
+    def get_attendance_by_date(self, selected_date):
+        """Get attendance records for a selected date."""
+        with self.lock:
+            cursor = self.conn.execute('''
+                SELECT s.name, s.department, a.date, a.time, a.marked_at
+                FROM attendance a
+                JOIN students s ON a.student_id = s.id
+                WHERE a.date = ?
+                ORDER BY a.marked_at
+            ''', (selected_date,))
+            return self._format_attendance_rows(cursor.fetchall())
     def get_attendance_count_today(self):
         """Get today's attendance count."""
         today = datetime.date.today().isoformat()
